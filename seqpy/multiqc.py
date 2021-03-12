@@ -273,38 +273,3 @@ class MultiQC():
                 for j, value in values:
                     cur_data_mapping_entry[j] = value
         return data_mapping
-
-if __name__ == "__main__":
-    import sys
-    sys.path.append("/home/joribello/Documents/OneDrive/NASA/Fall2020/project/V-V_scripts/JDO_V-V")
-
-    from VV.parse_isa import get_sample_names
-    INPUT = "GLDS-194/00-RawData/FastQC_Reports/raw_multiqc_report/multiqc_data/multiqc_data.json"
-    ISA = "GLDS-194/Metadata/GLDS-194_metadata_GLDS-194-ISA.zip"
-    SAMPLES = get_sample_names(ISA, samples_only = True)
-
-    mqc = MultiQC(multiQC_json = INPUT,
-                  samples = SAMPLES,
-                  outlier_comparision_point = "mean")
-    # returns list of data keys
-    print("DATA KEYS")
-    print(mqc.sample_wise_data_keys)
-
-    LRTN_subset = [sample for sample in mqc.samples if "LRTN" in sample]
-
-    mqc.compile_subset(samples_subset = LRTN_subset,
-                       subset_name = "Live Return",
-                       key = mqc.sample_wise_data_keys[0])
-
-    mqc.compile_subset(samples_subset = LRTN_subset,
-                       subset_name = "Live Return",
-                       key = 'forward-fastqc_per_sequence_gc_content_plot-Percentages')
-
-    print("FIRST SAMPLE DATA")
-    print(mqc.data[mqc.samples[0]])
-
-    print("SUBSET DATA")
-    print(mqc.subsets["Live Return"])
-
-    print("Outlier Detection for All")
-    print(mqc.detect_outliers(key = 'forward-percent_duplicates', deviation = 0.5))
