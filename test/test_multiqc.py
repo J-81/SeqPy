@@ -1,6 +1,6 @@
 from seqpy.multiqc import MultiQC
 
-INPUT = "assets/test/multiqc_data.json"
+RAW_INPUT = "assets/test/raw_multiqc_data.json"
 SAMPLES = ['Mmus_BAL-TAL_LRTN_FLT_Rep3_F8', 'Mmus_BAL-TAL_RRTN_BSL_Rep3_B9', 'Mmus_BAL-TAL_LRTN_FLT_Rep4_F9',
            'Mmus_BAL-TAL_LRTN_BSL_Rep1_B7', 'Mmus_BAL-TAL_LRTN_FLT_Rep5_F10', 'Mmus_BAL-TAL_LRTN_FLT_Rep2_F7',
            'Mmus_BAL-TAL_LRTN_FLT_Rep1_F6', 'Mmus_BAL-TAL_RRTN_BSL_Rep4_B10', 'Mmus_BAL-TAL_LRTN_GC_Rep3_G9',
@@ -44,7 +44,7 @@ EXPECTED_DATA_KEY = ['forward-percent_gc',
 import unittest
 
 class TestMultiQCParser(unittest.TestCase):
-    mqc = MultiQC(multiQC_json = INPUT,
+    mqc = MultiQC(multiQC_json = RAW_INPUT,
                   samples = SAMPLES,
                   outlier_comparision_point = "median")
 
@@ -123,7 +123,7 @@ class TestMultiQCParser(unittest.TestCase):
 
     def test_bad_substring_mapping(self):
         with self.assertRaises(ValueError, msg="Bad file substring mapping failed as intended"):
-            mqc = MultiQC(multiQC_json = INPUT,
+            mqc = MultiQC(multiQC_json = RAW_INPUT,
                           samples = SAMPLES,
                           outlier_comparision_point = "median",
                           file_mapping_substrings = {"UNREAL":"File_X"})
