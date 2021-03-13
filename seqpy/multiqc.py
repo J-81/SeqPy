@@ -45,8 +45,6 @@ class MultiQC():
     def __init__(self, multiQC_json: Path,
                        samples: list[str],
                        file_mapping_substrings: dict[str, str] = {"_R1_":"forward", "_R2":"reverse"},
-                       forward_substring: str = "_R1_",
-                       reverse_substring: str = "_R2_",
                        outlier_comparision_point: str = "median"):
         try:
             self.outlier_comparision = self.OUTLIER_COMPARISION[outlier_comparision_point]
