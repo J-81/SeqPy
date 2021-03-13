@@ -19,6 +19,25 @@ class Subset:
     samples: list = field(repr=False)
     values: Union[list, dict] = field(repr=False)
 
+@dataclass
+class OneValueData:
+    """ Representation of data for a single sample from a bar graph or general stats
+    """
+    datakey: str
+    units: str
+    value: float
+
+@dataclass
+class IndexedValuesData:
+    """ Representation of data for a single sample from a XY line graph
+    """
+    datakey: str
+    units: str
+    bins: list
+    bin_units: str
+    values: dict
+
+
 class MultiQC():
     OUTLIER_COMPARISION = {"median":median,
                            "mean":mean}
@@ -45,92 +64,62 @@ class MultiQC():
         # holds subsets computed by user
         self.subsets = defaultdict(dict)
 
-    def compile_subset(self, samples_subset, subset_name, key):
-        aggregate = self._compile_across_samples(data_mapping = self.data,
-                                                 key = key,
-                                                 samples_subset = samples_subset,
-                                                subset_name = subset_name)
-        self.subsets[subset_name][key] = Subset(name = subset_name,
-                                                datakey = key,
-                                                samples = samples_subset,
-                                                values = aggregate)
-        print(f"Compiled subset data for '{subset_name}' with samples {samples_subset} for {key}")
-        return self.subsets[subset_name][key]
+        self.file_labels = list(self._file_mapping_substrings.values())
 
-    def _compile_across_samples(self, data_mapping, key, samples_subset, subset_name):
-        """ Creates an entry for a subset of samples for value in key.
+    def compile_subset(self, samples_subset, key):
+        compiled = None
 
-        For examples, for a set of samples, sample_1 to sample_N.
-        A subset of samples can be aggregated.
-        Examples:
-            # all samples aggregation for key1:
-            data_mapping = _compile_across_samples(data_mapping,
-                                                   key = "key1",
-                                                   samples_subset = [sample_1,... ,sample_N],
-                                                   subset_name = "all")
-            # a subset of samples aggregation for key1:
-            data_mapping = _compile_across_samples(data_mapping,
-                                                   key = "key1",
-                                                   samples_subset = [sample_1, sample_{i+2}, ...],
-                                                   subset_name = "odd")
+        # check samples_subset is a true subset
+        assert set(self.samples).issuperset(set(samples_subset)), \
+               f"Samples supplied are not a subset of {samples}"
+        # check key is in extracted data
+        assert key in self.sample_wise_data_keys, f"Missing key {key}"
 
-
-        Automatically determines if the values are dict like {index: value}
-        or a single value per sample and returns the corresponding type.
-        """
-        aggregate = None
-
-        for sample in self.samples:
-            data = data_mapping[sample][key]
-            if type(data) == float:
+        for sample in samples_subset:
+            data = self.data[sample][key]
+            if isinstance(data, OneValueData):
+                data = data.value
                 # initiate aggregate data type to match
                 # if already initiated, this does not affect aggregate
-                aggregate = list() if not aggregate else aggregate
-                aggregate.append(data)
-            elif type(data) == dict:
+                compiled = list() if not compiled else compiled
+                compiled.append(data)
+            elif isinstance(data, IndexedValuesData):
                 # these must be {index:value} dicts of length 1
-
+                data = data.values
                 # initiate aggregate data type to match
                 # if already initiated, this does not affect aggregate
-                aggregate = defaultdict(list) if not aggregate else aggregate
+                compiled = defaultdict(list) if not compiled else compiled
                 for index, value in data.items():
-                    aggregate[index].append(value)
+                    compiled[index].append(value)
             else:
+                print(data)
                 raise ValueError(f"For {key}, {type(data)} type for data is unexpected.  Aggregation not implemented.")
+        # if compiled is a defaultdict, lock back as dict to avoid accessing unfilled keys
+        if isinstance(compiled, defaultdict):
+            compiled = dict(compiled)
 
-        return aggregate
+        return compiled
 
-    def detect_outliers(self, key: str, deviation: float, subset_name: str = None):
-        if subset_name:
-            try:
-                subset = self.subsets[subset_name][key]
-            except KeyError:
-                raise KeyError(f"Subset {subset_name} has not been compiled yet for {key}")
-        # compile for all samples
-        else:
-            # compile all subset
-            subset = self.compile_subset(samples_subset = self.samples,
-                                         subset_name = "All",
-                                         key = key)
-        print(f"Checking for {key} outliers in {subset}\n"
-              f"\tOutlier Criteria: (Standard deviations > {deviation})")
-
+    def detect_outliers(self, key: str, deviation: float, subset_samples: list = None):
+        # if subset samples not given, assume all samples for outlier detection
+        if not subset_samples:
+            subset_samples = self.samples
+        values = self.compile_subset(subset_samples, key)
         outliers = list()
-
         # handle one value per sample style data
-        if type(subset.values) == list:
-            _stdev = stdev(subset.values)
-            _median = median(subset.values)
+        if type(values) == list:
+            _stdev = stdev(values)
+            _median = median(values)
             if _stdev == 0:
                 print("Standard Deviation equals zero for {key}! No outliers detected!")
                 return outliers
-            for i, value in enumerate(subset.values):
+            for i, value in enumerate(values):
                 stdevs_from_median = abs(value - _median) / _stdev
                 if stdevs_from_median > deviation:
-                    outliers.append((subset.samples[i], stdevs_from_median))
+                    outliers.append((subset_samples[i], stdevs_from_median))
 
-        elif type(subset.values) == defaultdict:
-            for index, values in subset.values.items():
+        elif type(values) == dict:
+            for index, values in values.items():
                 _stdev = stdev(values)
                 _median = median(values)
                 if _stdev == 0:
@@ -139,16 +128,15 @@ class MultiQC():
                 for i, value in enumerate(values):
                     stdevs_from_median = abs(value - _median) / _stdev
                     if stdevs_from_median > deviation:
-                        outliers.append((f"{subset.samples[i]}:{index}", stdevs_from_median))
+                        outliers.append((f"{samples[i]}:{index}", stdevs_from_median))
         else:
-            print(type(subset.values))
+            print(type(values))
             raise ValueError("Unknown type for outlier detection")
         if outliers:
             print(f"Outliers detected!")
         else:
             print(f"No outliers detected!")
         return outliers
-
 
     def _label_file(self, filename: str):
         """ Given a filename.  Return the file label based on a unique substring.
@@ -181,7 +169,12 @@ class MultiQC():
                 cur_sample = [sample for sample in samples if sample in file_name][0]
                 filelabel = self._label_file(file_name)
                 for key, value in data.items():
-                    data_mapping[cur_sample][f"{filelabel}-{key}"] = value
+                    full_key = f"{filelabel}-{key}"
+                    data_mapping[cur_sample][full_key] = \
+                        OneValueData( datakey = full_key,
+                                      value = value,
+                                      units = key
+                                         )
 
         ### extract plot data
 
@@ -215,12 +208,15 @@ class MultiQC():
         # iterate through data from datasets
         # this should be a list with one entry
         assert len(data["datasets"]) == 1
+        units = data["config"]["ylab"]
         for sub_data in data["datasets"][0]:
             name = sub_data["name"]
             values = sub_data["data"]
             for i, value in enumerate(values):
                 sample, sample_file = mqc_samples_to_samples[i]
-                data_mapping[sample][f"{sample_file}-{plot_name}-{name}"] = values[i]
+                key = f"{sample_file}-{plot_name}-{name}"
+                data_mapping[sample][key] = \
+                    OneValueData( datakey = key, units = units , value = values[i])
         return data_mapping
 
     def _extract_from_xy_line_graph(self, data, plot_name, data_mapping, samples):
@@ -236,8 +232,10 @@ class MultiQC():
         # plots with bins are detected
         if "categories" in data["config"].keys():
             bins = [str(bin) for bin in data["config"]["categories"]]
+            isCategorical = True
         else:
             bins = False
+            isCategorical = False
 
 
         # dataset represents an entire plot (i.e. all lines)
@@ -260,16 +258,24 @@ class MultiQC():
 
                 sample = matching_samples[0]
                 sample_file = self._label_file(file_name)
-
+                # for plots with bins, add bin string to values iterable
+                if isCategorical:
+                    values = zip(bins, values)
+                    these_bins = bins
+                else:
+                    these_bins = [bin for bin, value in values]
                 # three level nested dict entries for xy graphs
                 # {sample: {sample_file-plot_type: {index: value}}}
                 data_key = f"{sample_file}-{plot_name}{data_label}"
-                data_mapping[sample][data_key] = dict()
+                data_mapping[sample][data_key] = \
+                    IndexedValuesData( datakey = data_key,
+                                       units = data["config"]["ylab"],
+                                       bins = these_bins,
+                                       bin_units = data["config"]["xlab"],
+                                       values = dict()) # data is populated later
                 cur_data_mapping_entry = data_mapping[sample][data_key]
-                # for plots with bins, add bin string to values iterable
-                if bins:
-                    values = zip(bins, values)
+
                 # for non-categorical bins, each values should be an [index,value]
                 for j, value in values:
-                    cur_data_mapping_entry[j] = value
+                    cur_data_mapping_entry.values[j] = float(value)
         return data_mapping
