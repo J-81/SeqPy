@@ -118,6 +118,13 @@ class MultiQC():
 
         elif type(values) == dict:
             for index, values in values.items():
+                # line graphs that did not start at the origin
+                # (values of zero before a certain x value - e.g. length distribution plot)
+                # these do not have entries and must be corrected with explicit zeros
+                # add zeroes to length of subset_samples
+                implicit_zeroes = len(subset_samples) - len(values)
+                if implicit_zeroes:
+                    values.extend([0]*implicit_zeroes)
                 _stdev = stdev(values)
                 _median = median(values)
                 if _stdev == 0:
@@ -126,7 +133,7 @@ class MultiQC():
                 for i, value in enumerate(values):
                     stdevs_from_median = abs(value - _median) / _stdev
                     if stdevs_from_median > deviation:
-                        outliers.append((f"{samples[i]}:{index}", stdevs_from_median))
+                        outliers.append((f"{subset_samples[i]}:{index}", stdevs_from_median))
         else:
             print(type(values))
             raise ValueError("Unknown type for outlier detection")

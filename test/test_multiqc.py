@@ -166,6 +166,20 @@ class TestTrimmedMultiQCParser(TestMultiQCParser):
         deviation = 99999
         self.assertEqual(len(self.mqc.detect_outliers(key = 'forward-percent_duplicates', deviation = deviation)), 0)
 
+    def test_outlier_detection_on_indexed_values(self):
+        key = "forward-fastqc_sequence_length_distribution_plot"
+        # check with stringent threshold for detection
+        deviation = 0.5
+        self.assertEqual(len(self.mqc.detect_outliers(key = key, deviation = deviation)), 196)
+
+        # check with more lax threshold
+        deviation = 1
+        self.assertEqual(len(self.mqc.detect_outliers(key = key, deviation = deviation)), 109)
+
+        # check with unreasonably high threshold
+        deviation = 99999
+        self.assertEqual(len(self.mqc.detect_outliers(key = key, deviation = deviation)), 0)
+
     def test_data_access_for_xy_line_graph_data(self):
         mqc = self.mqc
         key = 'forward-fastqc_per_sequence_quality_scores_plot'
