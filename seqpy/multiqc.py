@@ -187,6 +187,10 @@ class MultiQC():
             else:
                 raise ValueError(f"Unknown plot type {plot_type}. Data parsing not implemented for multiQC {plot_type}")
 
+        # lock data mapping to parsed data by converting by to dict (from defaultdict)
+        data_mapping = dict(data_mapping)
+        for sample in samples:
+            data_mapping[sample] = dict(data_mapping[sample])
         return data_mapping
 
     def _extract_from_bar_graph(self, data, plot_name, data_mapping, samples):
