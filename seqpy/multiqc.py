@@ -133,7 +133,7 @@ class MultiQC():
                 for i, value in enumerate(values):
                     stdevs_from_median = abs(value - _median) / _stdev
                     if stdevs_from_median > deviation:
-                        outliers.append((f"{subset_samples[i]}:{index}", stdevs_from_median))
+                        outliers.append((subset_samples[i], index, stdevs_from_median))
         else:
             print(type(values))
             raise ValueError("Unknown type for outlier detection")
